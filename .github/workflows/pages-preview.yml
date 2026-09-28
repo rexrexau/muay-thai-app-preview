@@ -1,0 +1,76 @@
+name: Deploy to GitHub Pages (debuggable)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Environment info
+        run: |
+          echo "### Environment"
+          node -v
+          npm -v
+          echo "### Working directory"
+          pwd
+          echo "### Repo root files"
+          ls -la
+          echo "### client folder files"
+          ls -la client || true
+
+      - name: Install dependencies (npm install)
+        run: npm install
+
+      - name: TypeScript check
+        run: npm run check
+
+      - name: Build app
+        run: npm run build
+
+      - name: Inspect build output
+        run: |
+          echo "dist contents:"
+          ls -la dist || true
+
+      - name: Upload static files (artifact)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+          if-no-files-found: warn
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download artifact
+        uses: actions/download-pages-artifact@v2
+        with:
+          path: ./dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
